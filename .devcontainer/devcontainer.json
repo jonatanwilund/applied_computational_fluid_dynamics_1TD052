@@ -1,0 +1,32 @@
+{
+  "name": "FEniCSx 0.11.0",
+  "image": "ghcr.io/fenics/dolfinx/dolfinx:v0.11.0",
+  "containerEnv": {
+    "UV_PROJECT_ENVIRONMENT": "/dolfinx-env",
+    "VIRTUAL_ENV": "/dolfinx-env"
+  },
+  "remoteEnv": {
+    "PATH": "/dolfinx-env/bin:${containerEnv:PATH}"
+  },
+  "features": {
+    "ghcr.io/devcontainers-extra/features/uv:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/dolfinx-env/bin/python",
+        "python.analysis.extraPaths": [
+          "/dolfinx-env/lib/python3.10/site-packages",
+          "/dolfinx-env/lib/python3.11/site-packages",
+          "/dolfinx-env/lib/python3.12/site-packages"
+        ]
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "postCreateCommand": "uv pip install jax",
+  "remoteUser": "root"
+}
