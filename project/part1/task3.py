@@ -1,6 +1,5 @@
 import gmsh
 import numpy as np
-import scipy as sci
 from dolfinx import io, mesh
 from mpi4py import MPI
 from scipy.sparse import csr_matrix

@@ -3,8 +3,10 @@ import numpy as np
 
 
 def u0(
-    x: np.ndarray, x0: np.ndarray = np.array([0.3, 0]), r0: float = 0.25
+    x: np.ndarray, x0: np.ndarray | None = None, r0: float = 0.25
 ) -> np.ndarray:
+    if x0 is None:
+        x0 = np.array([0.3, 0])
     return 0.5 * (1 - np.tanh(((x[0] - x0[0]) ** 2 + (x[1] - x0[1]) ** 2) / r0**2 - 1))
 
 
