@@ -1,9 +1,14 @@
 {
   "name": "FEniCSx 0.11.0",
   "image": "ghcr.io/fenics/dolfinx/dolfinx:v0.11.0",
+  "mounts": [
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+  ],
   "containerEnv": {
     "UV_PROJECT_ENVIRONMENT": "/dolfinx-env",
-    "VIRTUAL_ENV": "/dolfinx-env"
+    "VIRTUAL_ENV": "/dolfinx-env",
+    "DISPLAY": ":0",
+    "MPLBACKEND": "TkAgg"
   },
   "remoteEnv": {
     "PATH": "/dolfinx-env/bin:${containerEnv:PATH}"
@@ -27,6 +32,6 @@
       ]
     }
   },
-  "postCreateCommand": "uv pip install jax",
+  "postCreateCommand": "apt-get update && apt-get install -y python3-tk && uv pip install jax",
   "remoteUser": "root"
 }

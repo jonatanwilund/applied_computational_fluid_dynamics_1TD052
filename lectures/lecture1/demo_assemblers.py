@@ -1,20 +1,16 @@
-
 import numpy as np
-from mpi4py import MPI
 from dolfinx import mesh
+from mpi4py import MPI
 
-from mesh import dolfinx_to_pet
-from fem_assemblers import (
-    mass_assembler_2d,
-    load_assembler_2d,
-    stiffness_assembler_2d,
+from common.fem_assemblers import (
     convection_assembler_2d,
+    load_assembler_2d,
+    mass_assembler_2d,
+    stiffness_assembler_2d,
 )
+from common.mesh import dolfinx_to_pet
 
-msh = mesh.create_unit_square(
-    MPI.COMM_SELF, 4, 4,
-    cell_type=mesh.CellType.triangle
-)
+msh = mesh.create_unit_square(MPI.COMM_SELF, 4, 4, cell_type=mesh.CellType.triangle)
 
 p, e, t = dolfinx_to_pet(msh)
 

@@ -1,4 +1,3 @@
-
 import numpy as np
 from scipy.sparse import coo_matrix
 
@@ -7,21 +6,16 @@ def hat_gradients(x, y):
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
 
-    detJ = ((x[1] - x[0]) * (y[2] - y[0])
-            - (x[2] - x[0]) * (y[1] - y[0]))
+    detJ = (x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0])
 
     if abs(detJ) < 1.0e-15:
         raise ValueError("Degenerate triangle.")
 
     area = 0.5 * abs(detJ)
 
-    b = np.array([y[1] - y[2],
-                  y[2] - y[0],
-                  y[0] - y[1]], dtype=float) / detJ
+    b = np.array([y[1] - y[2], y[2] - y[0], y[0] - y[1]], dtype=float) / detJ
 
-    c = np.array([x[2] - x[1],
-                  x[0] - x[2],
-                  x[1] - x[0]], dtype=float) / detJ
+    c = np.array([x[2] - x[1], x[0] - x[2], x[1] - x[0]], dtype=float) / detJ
 
     return area, b, c
 
@@ -43,8 +37,7 @@ def _assemble_sparse(npnt, t, local_matrix):
                 cols.append(loc2glb[j])
                 vals.append(AK[i, j])
 
-    return coo_matrix((vals, (rows, cols)),
-                      shape=(npnt, npnt)).tocsr()
+    return coo_matrix((vals, (rows, cols)), shape=(npnt, npnt)).tocsr()
 
 
 def mass_assembler_2d(p, t):
@@ -58,9 +51,7 @@ def mass_assembler_2d(p, t):
     """
     npnt = p.shape[1]
 
-    M0 = np.array([[2., 1., 1.],
-                   [1., 2., 1.],
-                   [1., 1., 2.]]) / 12.0
+    M0 = np.array([[2.0, 1.0, 1.0], [1.0, 2.0, 1.0], [1.0, 1.0, 2.0]]) / 12.0
 
     def local_matrix(K, loc2glb):
         x = p[0, loc2glb]
@@ -89,11 +80,11 @@ def load_assembler_2d(p, t, f):
 
         area, _, _ = hat_gradients(x, y)
 
-        bK = area / 3.0 * np.array([
-            f(x[0], y[0]),
-            f(x[1], y[1]),
-            f(x[2], y[2])
-        ], dtype=float)
+        bK = (
+            area
+            / 3.0
+            * np.array([f(x[0], y[0]), f(x[1], y[1]), f(x[2], y[2])], dtype=float)
+        )
 
         b_global[loc2glb] += bK
 
