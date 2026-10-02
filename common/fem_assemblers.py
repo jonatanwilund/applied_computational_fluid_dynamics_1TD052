@@ -115,6 +115,23 @@ def stiffness_assembler_2d(p, t, a=lambda x, y: 1.0):
     return _assemble_sparse(npnt, t, local_matrix)
 
 
+def stiffness_assembler_2d_vec(p, t, a):
+    """
+    a is a 1D array of length nt, containing the value of a for each element K
+    """
+    npnt = p.shape[1]
+
+    def local_matrix(K, loc2glb):
+        x = p[0, loc2glb]
+        y = p[1, loc2glb]
+
+        area, b, c = hat_gradients(x, y)
+
+        return a[K] * area * (np.outer(b, b) + np.outer(c, c))
+
+    return _assemble_sparse(npnt, t, local_matrix)
+
+
 def convection_assembler_2d(p, t, bx, by):
     """
     Assemble
@@ -152,14 +169,14 @@ def convection_assembler_2d(p, t, bx, by):
 def nonlinear_domain_residual_assembler_2d(p, t, U):
     """
     Assemble the domain integral part of the nonlinear residual vector:
-    R_i = int_Omega f(u_h) . grad(phi_i) dx
-    
+    C_i = int_Omega f(u_h) . grad(phi_i) dx
+
     The flux is evaluated at the triangle centroid.
     """
     npnt = p.shape[1]
     nt = t.shape[1]
 
-    R_global = np.zeros(npnt)
+    C_global = np.zeros(npnt)
 
     for K in range(nt):
         loc2glb = t[:, K]
@@ -179,58 +196,57 @@ def nonlinear_domain_residual_assembler_2d(p, t, U):
         fy = np.cos(u_c)
 
         # Compute the local residual vector for the 3 nodes
-        # RK_i = Area * (fx * b_i + fy * c_i)
-        RK = area * (fx * b + fy * c)
+        # C_i = Area * (fx * b_i + fy * c_i)
+        C = area * (fx * b + fy * c)
 
         # Add to global residual
-        R_global[loc2glb] += RK
+        C_global[loc2glb] += C
 
-    return R_global
-
+    return C_global
 
 
 def nonlinear_boundary_residual_assembler_2d(p, e, U):
     """
     Assemble int_{dOmega} (f(u_h) . n) phi_i ds using a vectorized midpoint rule.
-    
+
     Parameters:
       p: Node coordinate array, shape (2, npnt)
       boundary_edges: Boundary edge connectivity, shape (2, N_bound)
       U: Current solution vector, shape (npnt,)
     """
     npnt = p.shape[1]
-    R_bound = np.zeros(npnt)
-    
+    G_bound = np.zeros(npnt)
+
     # Extract node indices for all boundary edges
     n1 = e[0, :]
     n2 = e[1, :]
-    
+
     # Extract coordinates
     x1, y1 = p[0, n1], p[1, n1]
     x2, y2 = p[0, n2], p[1, n2]
-    
+
     # Edge vectors and lengths
     dx = x2 - x1
     dy = y2 - y1
     L = np.hypot(dx, dy)
-    
+
     # Outward unit normals (assumes counter-clockwise boundary traversal)
     nx = dy / L
     ny = -dx / L
-    
+
     # Evaluate solution at edge midpoints
     u_m = 0.5 * (U[n1] + U[n2])
-    
+
     # Evaluate nonlinear flux f(u) = (sin u, cos u) at midpoints
     fx = np.sin(u_m)
     fy = np.cos(u_m)
-    
+
     # Compute dot product with normal and scale by quadrature weights (L * 0.5)
     flux_n = fx * nx + fy * ny
     val = 0.5 * L * flux_n
-    
+
     # Scatter contributions back to the global nodes
-    np.add.at(R_bound, n1, val)
-    np.add.at(R_bound, n2, val)
-    
-    return R_bound
+    np.add.at(G_bound, n1, val)
+    np.add.at(G_bound, n2, val)
+
+    return G_bound
