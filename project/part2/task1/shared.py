@@ -60,7 +60,7 @@ def f(u: np.ndarray) -> np.ndarray:
     return np.array([np.sin(u[0]), np.cos(u[1])])
 
 
-def residual(p, t, U, viscosity_matrix, geometry=None):
+def residual(p, t, U, viscosity_matrix, geometry=None, artificial_viscosity=True):
     """
     Compute the full right-hand side residual R(U).
 
@@ -70,25 +70,29 @@ def residual(p, t, U, viscosity_matrix, geometry=None):
     advective_flux_residual = -nonlinear_divergence_residual_assembler_2d(
         p, t, U, geometry
     )
-    artificial_viscosity_residual = -(viscosity_matrix @ U)
+    if artificial_viscosity:
+        artificial_viscosity_residual = -(viscosity_matrix @ U)
+    else:
+        artificial_viscosity_residual = 0
     return advective_flux_residual + artificial_viscosity_residual
 
 
-def SPP_RK3_step(p, t, mass_solve, U_n, dt, viscosity_matrix, geometry=None):
+
+def SPP_RK3_step(p, t, mass_solve, U_n, dt, viscosity_matrix, geometry=None, artificial_viscosity=True):
     """
     Perform a single time step of the SSP-RK3 method for the nonlinear PDE,
     stabilized with artificial viscosity.
     """
     # Stage 1
-    R_0 = residual(p, t, U_n, viscosity_matrix, geometry)
+    R_0 = residual(p, t, U_n, viscosity_matrix, geometry, artificial_viscosity)
     U1 = U_n + dt * mass_solve(R_0)
 
     # Stage 2
-    R_1 = residual(p, t, U1, viscosity_matrix, geometry)
+    R_1 = residual(p, t, U1, viscosity_matrix, geometry, artificial_viscosity)
     U2 = (3 / 4) * U_n + (1 / 4) * (U1 + dt * mass_solve(R_1))
 
     # Stage 3
-    R_2 = residual(p, t, U2, viscosity_matrix, geometry)
+    R_2 = residual(p, t, U2, viscosity_matrix, geometry, artificial_viscosity)
     return (1 / 3) * U_n + (2 / 3) * (U2 + dt * mass_solve(R_2))
 
 
