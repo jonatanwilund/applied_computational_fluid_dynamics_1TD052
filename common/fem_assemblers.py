@@ -132,6 +132,21 @@ def stiffness_assembler_2d_vec(p, t, a):
     return _assemble_sparse(npnt, t, local_matrix)
 
 
+def precompute_triangle_geometry(p, t):
+    """Precompute areas and basis-function gradients for all triangles."""
+    x = p[0, t]
+    y = p[1, t]
+
+    detJ = (x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0])
+    if np.any(np.abs(detJ) < 1.0e-15):
+        raise ValueError("Degenerate triangle.")
+
+    area = 0.5 * np.abs(detJ)
+    b = np.stack((y[1] - y[2], y[2] - y[0], y[0] - y[1])) / detJ
+    c = np.stack((x[2] - x[1], x[0] - x[2], x[1] - x[0])) / detJ
+    return area, b, c
+
+
 def convection_assembler_2d(p, t, bx, by):
     """
     Assemble
@@ -166,7 +181,7 @@ def convection_assembler_2d(p, t, bx, by):
     return _assemble_sparse(npnt, t, local_matrix)
 
 
-def nonlinear_domain_residual_assembler_2d(p, t, U):
+def nonlinear_domain_residual_assembler_2d(p, t, U, geometry=None):
     """
     Assemble the domain integral part of the nonlinear residual vector:
     C_i = int_Omega f(u_h) . grad(phi_i) dx
@@ -174,35 +189,36 @@ def nonlinear_domain_residual_assembler_2d(p, t, U):
     The flux is evaluated at the triangle centroid.
     """
     npnt = p.shape[1]
-    nt = t.shape[1]
+    if geometry is None:
+        geometry = precompute_triangle_geometry(p, t)
+
+    area, b, c = geometry
+    u_c = np.mean(U[t], axis=0)
+    fx = np.sin(u_c)
+    fy = np.cos(u_c)
+    local_residual = area * (fx * b + fy * c)
 
     C_global = np.zeros(npnt)
-
-    for K in range(nt):
-        loc2glb = t[:, K]
-
-        # Extract vertex coordinates for element K
-        x = p[0, loc2glb]
-        y = p[1, loc2glb]
-
-        # Get area and constant gradient components b (dx) and c (dy)
-        area, b, c = hat_gradients(x, y)
-
-        # Evaluate u_h at the triangle centroid
-        u_c = np.mean(U[loc2glb])
-
-        # Evaluate the nonlinear flux f(u) = (sin u, cos u) at the centroid
-        fx = np.sin(u_c)
-        fy = np.cos(u_c)
-
-        # Compute the local residual vector for the 3 nodes
-        # C_i = Area * (fx * b_i + fy * c_i)
-        C = area * (fx * b + fy * c)
-
-        # Add to global residual
-        C_global[loc2glb] += C
-
+    np.add.at(C_global, t, local_residual)
     return C_global
+
+
+def nonlinear_divergence_residual_assembler_2d(p, t, U, geometry=None):
+    """Assemble the positive P1 centroid-quadrature load for div(f(U))."""
+    npnt = p.shape[1]
+    if geometry is None:
+        geometry = precompute_triangle_geometry(p, t)
+
+    area, b, c = geometry
+    u_c = np.mean(U[t], axis=0)
+    du_dx = np.sum(U[t] * b, axis=0)
+    du_dy = np.sum(U[t] * c, axis=0)
+    divergence = np.cos(u_c) * du_dx - np.sin(u_c) * du_dy
+    local_load = np.broadcast_to(area * divergence / 3.0, t.shape)
+
+    divergence_load = np.zeros(npnt)
+    np.add.at(divergence_load, t, local_load)
+    return divergence_load
 
 
 def nonlinear_boundary_residual_assembler_2d(p, e, U):
