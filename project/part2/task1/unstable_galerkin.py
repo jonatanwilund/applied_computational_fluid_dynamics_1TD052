@@ -13,7 +13,6 @@ from shared import (
 from tqdm import tqdm
 
 from common.fem_assemblers import (
-    load_assembler_2d,
     mass_assembler_2d,
     precompute_triangle_geometry,
     stiffness_assembler_2d_vec,
@@ -21,14 +20,14 @@ from common.fem_assemblers import (
 from common.mesh import dolfinx_to_pet
 
 
-def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0):
+def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, h_min, T=1.0):
     dt = CFL * h_min
 
-    U_n = U0.copy()
+    U_n = u0(p)
     U_min_vals = [U_n.min()]
     U_max_vals = [U_n.max()]
     total_mass_vals = [total_mass(M, U_n)]
-    
+
     times = [0.0]
     time = 0.0
     while time < T:
@@ -43,7 +42,7 @@ def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0
             geometry,
             artificial_viscosity=False,
         )
-        
+
         U_min_vals.append(U_n.min())
         U_max_vals.append(U_n.max())
         total_mass_vals.append(total_mass(M, U_n))
@@ -53,14 +52,13 @@ def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0
     return times, U_min_vals, U_max_vals, total_mass_vals
 
 
-def main():
+def main(h: float = 0.1, CFL_list: tuple[float] = [0.01, 0.05, 0.1, 0.2, 0.5, 0.8]):
     output_dir = Path("project/part2/task1/plots/unstable")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create mesh
-    h = 0.1
     N = round(4 / h)  # 4 is the domain width in both directions
-    
+
     domain = get_mesh(N)
     p, _, t = dolfinx_to_pet(domain)
     geometry = precompute_triangle_geometry(p, t)
@@ -72,21 +70,10 @@ def main():
     epsilon_K = 0.5 * h_K
     viscosity_matrix = stiffness_assembler_2d_vec(p, t, epsilon_K)
 
-    b0 = load_assembler_2d(p, t, lambda x, y: u0(np.array([x, y])))
-    U0 = mass_solve(b0)
-    
-    CFL_list = [
-        0.05,
-        0.1, 
-        0.2, 
-        0.5, 
-        0.8, 
-    ]
     times_list = []
     U_min_vals_list = []
     U_max_vals_list = []
     total_mass_vals_list = []
-
 
     for cfl in tqdm(CFL_list, desc="CFL Loop"):
         times, U_min_vals, U_max_vals, total_mass_vals = solve(
@@ -97,7 +84,6 @@ def main():
             mass_solve,
             viscosity_matrix,
             geometry,
-            U0,
             np.min(h_K),
         )
         times_list.append(times)
@@ -142,7 +128,6 @@ def main():
         plt.tight_layout()
         plt.savefig(output_dir / f"unstable_galerkin_cfl_{cfl}_comparison.png", dpi=300)
         plt.close(fig)
-
 
 
 if __name__ == "__main__":

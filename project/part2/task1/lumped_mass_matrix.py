@@ -13,7 +13,6 @@ from shared import (
 from tqdm import tqdm
 
 from common.fem_assemblers import (
-    load_assembler_2d,
     mass_assembler_2d,
     precompute_triangle_geometry,
     stiffness_assembler_2d_vec,
@@ -21,22 +20,20 @@ from common.fem_assemblers import (
 from common.mesh import dolfinx_to_pet
 
 
-def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0):
+def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, h_min, T=1.0):
     dt = CFL * h_min
 
-    U_n = U0.copy()
+    U_n = u0(p)
     U_min_vals = [U_n.min()]
     U_max_vals = [U_n.max()]
     total_mass_vals = [total_mass(M, U_n)]
-    
+
     times = [0.0]
     time = 0.0
     while time < T:
         dt_step = min(dt, T - time)
-        U_n = SPP_RK3_step(
-            p, t, mass_solve, U_n, dt_step, viscosity_matrix, geometry
-        )
-        
+        U_n = SPP_RK3_step(p, t, mass_solve, U_n, dt_step, viscosity_matrix, geometry)
+
         U_min_vals.append(U_n.min())
         U_max_vals.append(U_n.max())
         total_mass_vals.append(total_mass(M, U_n))
@@ -46,14 +43,13 @@ def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0
     return times, U_min_vals, U_max_vals, total_mass_vals
 
 
-def main():
+def main(h: float = 0.1, CFL_list: tuple[float] = [0.01, 0.05, 0.1, 0.2, 0.5, 0.8]):
     output_dir = Path("project/part2/task1/plots/lumped")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create mesh
-    h = 0.1
     N = round(4 / h)  # 4 is the domain width in both directions
-    
+
     domain = get_mesh(N)
     p, _, t = dolfinx_to_pet(domain)
     geometry = precompute_triangle_geometry(p, t)
@@ -64,17 +60,8 @@ def main():
     mass_solve = lambda rhs: rhs / lumped_diagonal
 
     h_K = compute_element_diameters(p, t)
-    b0 = load_assembler_2d(p, t, lambda x, y: u0(np.array([x, y])))
-    U0 = mass_solve(b0)
 
     Cvel_list = [0.1, 0.5, 1.0]
-    CFL_list = [
-        0.05,
-        0.1, 
-        0.2, 
-        0.5, 
-        0.8, 
-    ]
     for Cvel in Cvel_list:
         viscosity_matrix = stiffness_assembler_2d_vec(p, t, Cvel * h_K)
         results = []
@@ -89,7 +76,6 @@ def main():
                     mass_solve,
                     viscosity_matrix,
                     geometry,
-                    U0,
                     np.min(h_K),
                 )
             )
@@ -127,7 +113,6 @@ def main():
                 dpi=300,
             )
             plt.close(fig)
-
 
 
 if __name__ == "__main__":
