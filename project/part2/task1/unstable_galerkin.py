@@ -101,26 +101,39 @@ def main(h: float = 0.1, CFL_list: tuple[float] = [0.01, 0.05, 0.1, 0.2, 0.5, 0.
         total_mass_vals_list,
         colors,
     ):
-        fig, axes = plt.subplots(3, 1, figsize=(9, 10), sharex=True)
+        fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+        relative_axis = axes[1].twinx()
         axes[0].plot(times, u_min, color=color, label=f"CFL = {cfl}")
         axes[0].plot(times, u_max, color=color, linestyle="--")
 
-        axes[1].plot(times, mass, color=color)
+        axes[1].plot(times, mass, color=color, label="Total mass")
 
         relative_mass_change = np.abs(np.asarray(mass) - mass[0]) / abs(mass[0])
-        axes[2].plot(times, relative_mass_change, color=color)
+        relative_axis.plot(
+            times,
+            relative_mass_change,
+            color=color,
+            linestyle=":",
+            label="Relative mass change",
+        )
 
         axes[0].set_ylabel("Solution extrema")
-        axes[0].set_title("Minimum and maximum solution values")
+        axes[0].set_title(f"Unstable Galerkin: solution extrema (CFL = {cfl})")
         axes[0].legend()
 
         axes[1].set_ylabel(r"$M_h = 1^T M U$")
-        axes[1].set_title("Total mass")
+        relative_axis.set_ylabel("Relative mass change")
+        axes[1].set_xlabel("Time")
+        axes[1].set_title("Total mass and relative mass change")
+        relative_axis.axhline(0, color="black", linewidth=0.8)
 
-        axes[2].set_xlabel("Time")
-        axes[2].set_ylabel("Relative change")
-        axes[2].set_title("Relative change in mass-matrix quantity")
-        axes[2].axhline(0, color="black", linewidth=0.8)
+        mass_handles, mass_labels = axes[1].get_legend_handles_labels()
+        relative_handles, relative_labels = relative_axis.get_legend_handles_labels()
+        axes[1].legend(
+            mass_handles + relative_handles,
+            mass_labels + relative_labels,
+            loc="best",
+        )
 
         for axis in axes:
             axis.grid(True, alpha=0.3)

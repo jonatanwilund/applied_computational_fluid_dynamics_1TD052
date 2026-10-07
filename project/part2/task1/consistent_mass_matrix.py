@@ -59,12 +59,13 @@ def main(h: float = 0.1, CFL_list: tuple[float] = [0.01, 0.05, 0.1, 0.2, 0.5, 0.
     h_K = compute_element_diameters(p, t)
 
     Cvel_list = [0.1, 0.5, 1.0]
+    results_by_cvel = {}
     for Cvel in Cvel_list:
         viscosity_matrix = stiffness_assembler_2d_vec(p, t, Cvel * h_K)
-        results = []
+        results_by_cvel[Cvel] = []
 
         for cfl in tqdm(CFL_list, desc=f"Cvel = {Cvel}"):
-            results.append(
+            results_by_cvel[Cvel].append(
                 solve(
                     cfl,
                     p,
@@ -77,39 +78,60 @@ def main(h: float = 0.1, CFL_list: tuple[float] = [0.01, 0.05, 0.1, 0.2, 0.5, 0.
                 )
             )
 
-        colors = plt.cm.viridis(np.linspace(0, 1, len(CFL_list)))
-        for cfl, result, color in zip(CFL_list, results, colors):
-            times, u_min, u_max, mass = result
-            fig, axes = plt.subplots(3, 1, figsize=(9, 10), sharex=True)
-            axes[0].plot(times, u_min, color=color, label=f"CFL = {cfl}")
+    colors = plt.cm.viridis(np.linspace(0, 1, len(Cvel_list)))
+    for cfl_index, cfl in enumerate(CFL_list):
+        fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+        relative_axis = axes[1].twinx()
+        for Cvel, color in zip(Cvel_list, colors):
+            times, u_min, u_max, mass = results_by_cvel[Cvel][cfl_index]
+            axes[0].plot(times, u_min, color=color, label=f"Cvel = {Cvel}")
             axes[0].plot(times, u_max, color=color, linestyle="--")
-
-            axes[1].plot(times, mass, color=color)
+            axes[1].plot(
+                times,
+                mass,
+                color=color,
+                label=f"Cvel = {Cvel} total mass",
+            )
 
             relative_mass_change = np.abs(np.asarray(mass) - mass[0]) / abs(mass[0])
-            axes[2].plot(times, relative_mass_change, color=color)
-
-            axes[0].set_ylabel("Solution extrema")
-            axes[0].set_title(f"Minimum and maximum solution values (Cvel = {Cvel})")
-            axes[0].legend()
-
-            axes[1].set_ylabel(r"$M_h = 1^T M U$")
-            axes[1].set_title("Total mass")
-
-            axes[2].set_xlabel("Time")
-            axes[2].set_ylabel("Relative change")
-            axes[2].set_title("Relative change in total mass")
-            axes[2].axhline(0, color="black", linewidth=0.8)
-
-            for axis in axes:
-                axis.grid(True, alpha=0.3)
-
-            plt.tight_layout()
-            plt.savefig(
-                output_dir / f"consistent_mass_matrix_cvel_{Cvel}_cfl_{cfl}.png",
-                dpi=300,
+            relative_axis.plot(
+                times,
+                relative_mass_change,
+                color=color,
+                linestyle=":",
+                label=f"Cvel = {Cvel} relative change",
             )
-            plt.close(fig)
+
+        axes[0].set_ylabel("Solution extrema")
+        axes[0].set_title(
+            f"Consistent mass matrix: solution extrema (CFL = {cfl})"
+        )
+        axes[0].legend()
+
+        axes[1].set_ylabel(r"$M_h = 1^T M U$")
+        relative_axis.set_ylabel("Relative mass change")
+        axes[1].set_xlabel("Time")
+        axes[1].set_title("Total mass and relative mass change")
+        relative_axis.axhline(0, color="black", linewidth=0.8)
+
+        mass_handles, mass_labels = axes[1].get_legend_handles_labels()
+        relative_handles, relative_labels = relative_axis.get_legend_handles_labels()
+        axes[1].legend(
+            mass_handles + relative_handles,
+            mass_labels + relative_labels,
+            loc="best",
+            ncol=2,
+        )
+
+        for axis in axes:
+            axis.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig(
+            output_dir / f"consistent_mass_matrix_cfl_{cfl}_cvel_comparison.png",
+            dpi=300,
+        )
+        plt.close(fig)
 
 
 if __name__ == "__main__":
