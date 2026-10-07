@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse import linalg
@@ -21,30 +23,42 @@ from common.mesh import dolfinx_to_pet
 
 def solve(CFL, p, t, M, mass_solve, viscosity_matrix, geometry, U0, h_min, T=1.0):
     dt = CFL * h_min
-    num_steps = int(T / dt)
 
     U_n = U0.copy()
     U_min_vals = [U_n.min()]
     U_max_vals = [U_n.max()]
     total_mass_vals = [total_mass(M, U_n)]
     
-    for step in range(num_steps):
-        # Pass the stiffness matrix A into the step function
+    times = [0.0]
+    time = 0.0
+    while time < T:
+        dt_step = min(dt, T - time)
         U_n = SPP_RK3_step(
-            p, t, mass_solve, U_n, dt, viscosity_matrix, geometry, artificial_viscosity=False
+            p,
+            t,
+            mass_solve,
+            U_n,
+            dt_step,
+            viscosity_matrix,
+            geometry,
+            artificial_viscosity=False,
         )
         
         U_min_vals.append(U_n.min())
         U_max_vals.append(U_n.max())
         total_mass_vals.append(total_mass(M, U_n))
-        
-    times = np.arange(num_steps + 1) * dt
+        time += dt_step
+        times.append(time)
+
     return times, U_min_vals, U_max_vals, total_mass_vals
 
 
 def main():
+    output_dir = Path("project/part2/task1/plots/unstable")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Create mesh
-    h = 0.05
+    h = 0.1
     N = round(4 / h)  # 4 is the domain width in both directions
     
     domain = get_mesh(N)
@@ -107,15 +121,15 @@ def main():
 
         axes[1].plot(times, mass, color=color)
 
-        relative_mass_change = (np.asarray(mass) - mass[0]) / abs(mass[0])
+        relative_mass_change = np.abs(np.asarray(mass) - mass[0]) / abs(mass[0])
         axes[2].plot(times, relative_mass_change, color=color)
 
         axes[0].set_ylabel("Solution extrema")
         axes[0].set_title("Minimum and maximum solution values")
         axes[0].legend()
 
-        axes[1].set_ylabel(r"$U^T M U$")
-        axes[1].set_title("Mass-matrix quantity")
+        axes[1].set_ylabel(r"$M_h = 1^T M U$")
+        axes[1].set_title("Total mass")
 
         axes[2].set_xlabel("Time")
         axes[2].set_ylabel("Relative change")
@@ -126,7 +140,8 @@ def main():
             axis.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(f"project/part2/task1/plots/unstable_galerkin_cfl_{cfl}_comparison.png", dpi=300)
+        plt.savefig(output_dir / f"unstable_galerkin_cfl_{cfl}_comparison.png", dpi=300)
+        plt.close(fig)
 
 
 

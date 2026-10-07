@@ -3,9 +3,7 @@ from dolfinx import mesh
 from mpi4py import MPI
 from scipy.sparse import csr_array
 
-from common.fem_assemblers import (
-    nonlinear_divergence_residual_assembler_2d,
-)
+from common.fem_assemblers import convection_assembler_2d_vec
 
 
 def get_mesh(N: int) -> mesh.Mesh:
@@ -57,43 +55,48 @@ def u0(x: np.ndarray) -> np.ndarray:
 
 def f(u: np.ndarray) -> np.ndarray:
     """Nonlinear flux term function f(u)"""
-    return np.array([np.sin(u[0]), np.cos(u[1])])
+    return np.array([np.sin(u), np.cos(u)])
 
 
-def residual(p, t, U, viscosity_matrix, geometry=None, artificial_viscosity=True):
-    """
-    Compute the full right-hand side residual R(U).
-
-    R(U) = -D(U) - A_visc U, where D(U) is the positive finite-element
-    load for div(f(u_h)) and A_visc is the artificial-viscosity matrix.
-    """
-    advective_flux_residual = -nonlinear_divergence_residual_assembler_2d(
-        p, t, U, geometry
-    )
-    if artificial_viscosity:
-        artificial_viscosity_residual = -(viscosity_matrix @ U)
-    else:
-        artificial_viscosity_residual = 0
-    return advective_flux_residual + artificial_viscosity_residual
-
-
-
-def SPP_RK3_step(p, t, mass_solve, U_n, dt, viscosity_matrix, geometry=None, artificial_viscosity=True):
+def SPP_RK3_step(
+    p,
+    t,
+    mass_solve,
+    U_n,
+    dt,
+    viscosity_matrix,
+    geometry,
+    artificial_viscosity=True,
+):
     """
     Perform a single time step of the SSP-RK3 method for the nonlinear PDE,
     stabilized with artificial viscosity.
     """
     # Stage 1
-    R_0 = residual(p, t, U_n, viscosity_matrix, geometry, artificial_viscosity)
+    convection_matrix = convection_assembler_2d_vec(
+        p, t, np.cos(U_n), -np.sin(U_n), geometry
+    )
+    operator = convection_matrix + viscosity_matrix if artificial_viscosity else convection_matrix
+    R_0 = -(operator @ U_n)
     U1 = U_n + dt * mass_solve(R_0)
 
     # Stage 2
-    R_1 = residual(p, t, U1, viscosity_matrix, geometry, artificial_viscosity)
+    convection_matrix = convection_assembler_2d_vec(
+        p, t, np.cos(U1), -np.sin(U1), geometry
+    )
+    operator = convection_matrix + viscosity_matrix if artificial_viscosity else convection_matrix
+    R_1 = -(operator @ U1)
     U2 = (3 / 4) * U_n + (1 / 4) * (U1 + dt * mass_solve(R_1))
 
     # Stage 3
-    R_2 = residual(p, t, U2, viscosity_matrix, geometry, artificial_viscosity)
-    return (1 / 3) * U_n + (2 / 3) * (U2 + dt * mass_solve(R_2))
+    convection_matrix = convection_assembler_2d_vec(
+        p, t, np.cos(U2), -np.sin(U2), geometry
+    )
+    operator = convection_matrix + viscosity_matrix if artificial_viscosity else convection_matrix
+    R_2 = -(operator @ U2)
+    U_np1 = (1 / 3) * U_n + (2 / 3) * (U2 + dt * mass_solve(R_2))
+
+    return U_np1
 
 
 def total_mass(M: csr_array, U: np.ndarray) -> float:
@@ -106,4 +109,4 @@ def total_mass(M: csr_array, U: np.ndarray) -> float:
     Returns:
       Total mass as a scalar value.
     """
-    return U @ (M @ U)
+    return np.ones_like(U) @ (M @ U)
