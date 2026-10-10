@@ -219,3 +219,6 @@ __marimo__/
 
 # png images
 *.png
+
+# .bp files/folders
+*.bp
